@@ -42,7 +42,7 @@ public class BottleXPCommand implements CommandExecutor {
         }
 
         if (args.length < 1) {
-            player.sendMessage(ChatColor.YELLOW + "/" + label + " <amount|all>");
+            player.sendMessage(ChatColor.YELLOW + "/" + label + " <amount|all> [bottles]");
             return true;
         }
 
@@ -93,7 +93,6 @@ public class BottleXPCommand implements CommandExecutor {
                     bottleCount++;
                 }
 
-                // One sound + one message instead of chat spam
                 player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_BREAK, SoundCategory.PLAYERS, 1.0F, 0.7F);
                 player.sendMessage(
                         ChatColor.GOLD + "Stored " + ChatColor.WHITE + formatXP(currentXP)
@@ -103,7 +102,6 @@ public class BottleXPCommand implements CommandExecutor {
                 );
                 return true;
             } else {
-                // Either no cap or total XP fits in a single bottle
                 if (countEmptySlots(player) < 1) {
                     player.sendMessage(
                             ChatColor.RED + "Your inventory is full! You need at least "
@@ -121,12 +119,12 @@ public class BottleXPCommand implements CommandExecutor {
         }
 
         // --------------------------
-        // /bottlexp <amount>
+        // /bottlexp <amount> <#bottles?>
         // --------------------------
-        final double amount;
+        final double amountPerBottle;
         try {
-            amount = Double.parseDouble(args[0]);
-            if (amount <= 0.0D) {
+            amountPerBottle = Double.parseDouble(args[0]);
+            if (amountPerBottle <= 0.0D) {
                 player.sendMessage(ChatColor.RED + "Amount must be greater than 0.");
                 return true;
             }
@@ -135,37 +133,62 @@ public class BottleXPCommand implements CommandExecutor {
             return true;
         }
 
-        if (maxPoints > 0 && amount > maxPoints) {
+        int bottlesCount = 1;
+        if (args.length >= 2) {
+            try {
+                bottlesCount = Integer.parseInt(args[1]);
+                if (bottlesCount <= 0) {
+                    player.sendMessage(ChatColor.RED + "Number of bottles must be greater than 0.");
+                    return true;
+                }
+            } catch (NumberFormatException e) {
+                player.sendMessage(ChatColor.RED + "Invalid bottle count: " + ChatColor.YELLOW + args[1]);
+                return true;
+            }
+        }
+
+        if (maxPoints > 0 && amountPerBottle > maxPoints) {
             player.sendMessage(ChatColor.RED + "You cannot store more than "
                     + ChatColor.YELLOW + maxPoints + ChatColor.RED + " points in one bottle!");
             return true;
         }
 
-        if (currentXP < amount) {
-            player.sendMessage(ChatColor.RED + "You don't have enough XP points!");
+        double totalRequired = amountPerBottle * bottlesCount;
+
+        if (currentXP < totalRequired) {
+            player.sendMessage(ChatColor.RED + "You don't have enough XP points! You need "
+                    + ChatColor.YELLOW + formatXP(totalRequired) + ChatColor.RED + " XP.");
             return true;
         }
 
-        // Need at least one free slot for this bottle
-        if (countEmptySlots(player) < 1) {
+        int emptySlots = countEmptySlots(player);
+        if (emptySlots < bottlesCount) {
             player.sendMessage(
                     ChatColor.RED + "Your inventory is full! You need at least "
-                            + ChatColor.YELLOW + "1"
-                            + ChatColor.RED + " free slot to store your XP."
+                            + ChatColor.YELLOW + bottlesCount
+                            + ChatColor.RED + " free slot"
+                            + (bottlesCount == 1 ? "" : "s")
+                            + " to store these bottles."
             );
             return true;
         }
 
-        setTotalExperience(player, currentXP - amount);
-        giveBottle(player, amount, plugin, debug, true);
+        setTotalExperience(player, currentXP - totalRequired);
+
+        for (int i = 0; i < bottlesCount; i++) {
+            giveBottle(player, amountPerBottle, plugin, debug, false);
+        }
+
+        player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_BREAK, SoundCategory.PLAYERS, 1.0F, 0.7F);
+        player.sendMessage(
+                ChatColor.GOLD + "Stored " + ChatColor.WHITE + formatXP(totalRequired)
+                        + " XP Points " + ChatColor.GOLD + "into "
+                        + ChatColor.YELLOW + bottlesCount
+                        + ChatColor.GOLD + " bottle" + (bottlesCount == 1 ? "" : "s") + "."
+        );
         return true;
     }
 
-    /**
-     * Give an XP bottle to the player with the specified amount stored.
-     *
-     * @param sendMessage whether to send the standard "Stored X XP" chat message & play sound
-     */
     private void giveBottle(Player player, double amount, Plugin plugin, boolean debug, boolean sendMessage) {
         final Material itemType = Material.EXPERIENCE_BOTTLE;
         final String primary = ChatColor.GOLD.toString();
@@ -201,7 +224,6 @@ public class BottleXPCommand implements CommandExecutor {
     private int countEmptySlots(Player player) {
         PlayerInventory inv = player.getInventory();
         int empty = 0;
-        // getStorageContents() = main inventory + hotbar (no armor/offhand)
         ItemStack[] contents = inv.getStorageContents();
         for (ItemStack stack : contents) {
             if (stack == null || stack.getType() == Material.AIR) {
