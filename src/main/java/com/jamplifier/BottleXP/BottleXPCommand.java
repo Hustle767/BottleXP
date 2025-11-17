@@ -49,7 +49,6 @@ public class BottleXPCommand implements CommandExecutor {
       return true;
     }
 
-    // Usage: points only now
     if (args.length < 1) {
       player.sendMessage(ChatColor.YELLOW + "/" + label + " <amount>");
       return true;
@@ -67,7 +66,6 @@ public class BottleXPCommand implements CommandExecutor {
       return true;
     }
 
-    // Max per item (points). Backward-compat: fall back to old level keys if new ones absent.
     final int maxPoints = this.isBook
         ? plugin.getConfig().getInt("max-xp-points-book",
             plugin.getConfig().getInt("max-xp-levels-book", -1))
@@ -80,17 +78,17 @@ public class BottleXPCommand implements CommandExecutor {
       return true;
     }
 
-    // Check player has enough raw XP points
+
     final double currentXP = getTotalExperience(player);
     if (currentXP < amount) {
       player.sendMessage(ChatColor.RED + "You don't have enough XP points!");
       return true;
     }
 
-    // Remove points
+
     setTotalExperience(player, currentXP - amount);
 
-    // Create item (points only)
+
     final Material itemType = this.isBook ? Material.KNOWLEDGE_BOOK : Material.EXPERIENCE_BOTTLE;
     final String primary = this.isBook ? ChatColor.DARK_AQUA.toString() : ChatColor.GOLD.toString();
     final String accent = ChatColor.GRAY.toString();
@@ -103,7 +101,7 @@ public class BottleXPCommand implements CommandExecutor {
           + accent + " (Points " + formatXP(amount) + ")";
       meta.setDisplayName(itemName);
       meta.getPersistentDataContainer().set(this.xpPointsKey, PersistentDataType.DOUBLE, amount);
-      // do NOT set levels key anymore
+
       item.setItemMeta(meta);
     }
 
@@ -128,7 +126,7 @@ public class BottleXPCommand implements CommandExecutor {
         : String.format(Locale.ROOT, "%.2f", value);
   }
 
-  /** Total raw XP points for current level/progress using vanilla curve. */
+
   private double getTotalExperience(Player player) {
     double total = 0.0D;
     for (int i = 0; i < player.getLevel(); i++) {
@@ -138,7 +136,7 @@ public class BottleXPCommand implements CommandExecutor {
     return total;
   }
 
-  /** Sets total raw XP points (distributes into level + progress). */
+
   private void setTotalExperience(Player player, double amount) {
     player.setExp(0.0F);
     player.setLevel(0);
@@ -154,7 +152,7 @@ public class BottleXPCommand implements CommandExecutor {
     player.setExp(getExpAtLevel(level) > 0 ? (float) (remaining / getExpAtLevel(level)) : 0.0F);
   }
 
-  /** Vanilla XP required to go from level N to N+1. */
+
   private int getExpAtLevel(int level) {
     if (level <= 15) return 2 * level + 7;
     if (level <= 30) return 5 * level - 38;
