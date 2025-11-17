@@ -1,36 +1,47 @@
 package com.jamplifier.BottleXP;
 
 import java.util.List;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class StowableXP extends JavaPlugin {
     private static StowableXP instance;
 
+    @Override
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
         reloadConfig();
         getLogger().info("StowableXP enabled!");
         getLogger().info("Thank you for using my plugin <3");
-        getServer().getPluginManager().registerEvents(new XPBottleUseListener(), (Plugin) this);
+
+
+        getServer().getPluginManager().registerEvents(new XPBottleUseListener(), this);
+
         if (getConfig().getBoolean("enable-bottles", true)) {
-            getCommand("bottlexp").setExecutor(new BottleXPCommand(false));
+            if (getCommand("bottlexp") != null) {
+                getCommand("bottlexp").setExecutor(new BottleXPCommand());
+            } else {
+                getLogger().warning("Command 'bottlexp' is not defined in plugin.yml!");
+            }
         } else {
             getLogger().info("XP Bottles are disabled in the config.");
         }
-        if (getConfig().getBoolean("enable-books", true)) {
-            getCommand("bookxp").setExecutor(new BottleXPCommand(true));
+
+        if (getCommand("stowablexp") != null) {
+            getCommand("stowablexp").setExecutor(new MainCommand(this));
+
+  
+            TypeForPlayer tabCompleter = new TypeForPlayer();
+            getCommand("stowablexp").setTabCompleter(tabCompleter);
+            if (getCommand("bottlexp") != null) {
+                getCommand("bottlexp").setTabCompleter(tabCompleter);
+            }
         } else {
-            getLogger().info("XP Books are disabled in the config.");
+            getLogger().warning("Command 'stowablexp' is not defined in plugin.yml!");
         }
-        getCommand("stowablexp").setExecutor(new MainCommand(this));
-        TypeForPlayer tabCompleter = new TypeForPlayer();
-        getCommand("stowablexp").setTabCompleter(tabCompleter);
-        getCommand("bottlexp").setTabCompleter(tabCompleter);
-        getCommand("bookxp").setTabCompleter(tabCompleter);
     }
 
+    @Override
     public void onDisable() {
         getLogger().info("StowableXP disabled!");
     }
@@ -39,10 +50,7 @@ public class StowableXP extends JavaPlugin {
         return instance;
     }
 
-    /**
-     * Returns true if SXP redemption is blocked in the given world.
-     * World names are matched case-insensitively.
-     */
+
     public boolean isRedeemBlockedInWorld(String worldName) {
         if (worldName == null) return false;
         List<String> blocked = getConfig().getStringList("blocked-redeem-worlds");

@@ -18,144 +18,182 @@ import java.util.Locale;
 
 public class BottleXPCommand implements CommandExecutor {
 
-  private final NamespacedKey xpLevelsKey =
-      new NamespacedKey((Plugin) StowableXP.getInstance(), "stored_xp_levels"); // kept only for legacy compatibility (read-only elsewhere)
-  private final NamespacedKey xpPointsKey =
-      new NamespacedKey((Plugin) StowableXP.getInstance(), "stored_xp_points");
+    private final NamespacedKey xpPointsKey =
+            new NamespacedKey((Plugin) StowableXP.getInstance(), "stored_xp_points");
 
-  private final boolean isBook;
-
-  public BottleXPCommand(boolean isBook) {
-    this.isBook = isBook;
-  }
-
-  @Override
-  public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-    if (!(sender instanceof Player)) {
-      sender.sendMessage(ChatColor.RED + "Only players can use this command.");
-      return true;
-    }
-    Player player = (Player) sender;
-
-    final Plugin plugin = StowableXP.getInstance();
-    final boolean debug = plugin.getConfig().getBoolean("debug-mode", false);
-
-    if (!this.isBook && !plugin.getConfig().getBoolean("enable-bottles", true)) {
-      player.sendMessage(ChatColor.RED + "XP Bottles are disabled on this server.");
-      return true;
-    }
-    if (this.isBook && !plugin.getConfig().getBoolean("enable-books", true)) {
-      player.sendMessage(ChatColor.RED + "XP Books are disabled on this server.");
-      return true;
+    public BottleXPCommand() {
     }
 
-    if (args.length < 1) {
-      player.sendMessage(ChatColor.YELLOW + "/" + label + " <amount>");
-      return true;
-    }
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "Only players can use this command.");
+            return true;
+        }
+        Player player = (Player) sender;
 
-    final double amount;
-    try {
-      amount = Double.parseDouble(args[0]);
-      if (amount <= 0.0D) {
-        player.sendMessage(ChatColor.RED + "Amount must be greater than 0.");
+        final Plugin plugin = StowableXP.getInstance();
+        final boolean debug = plugin.getConfig().getBoolean("debug-mode", false);
+
+        if (!plugin.getConfig().getBoolean("enable-bottles", true)) {
+            player.sendMessage(ChatColor.RED + "XP Bottles are disabled on this server.");
+            return true;
+        }
+
+        if (args.length < 1) {
+            player.sendMessage(ChatColor.YELLOW + "/" + label + " <amount|all>");
+            return true;
+        }
+
+        final boolean withdrawAll = args[0].equalsIgnoreCase("all");
+
+        // Total XP the player currently has (points, not levels)
+        final double currentXP = getTotalExperience(player);
+        if (currentXP <= 0.0D) {
+            player.sendMessage(ChatColor.RED + "You don't have any XP to store.");
+            return true;
+        }
+
+        final int maxPoints = plugin.getConfig().getInt(
+                "max-xp-points-bottle",
+                plugin.getConfig().getInt("max-xp-levels-bottle", -1)
+        );
+
+        if (withdrawAll) {
+            // /bottlexp all  -> withdraw everything, possibly split into multiple bottles
+            if (maxPoints > 0 && currentXP > maxPoints) {
+                // Split into multiple bottles obeying the per-bottle cap
+                setTotalExperience(player, 0.0D);
+
+                int fullBottles = (int) (currentXP / maxPoints);
+                double remainder = currentXP % maxPoints;
+                int bottleCount = 0;
+
+                for (int i = 0; i < fullBottles; i++) {
+                    giveBottle(player, maxPoints, plugin, debug, false);
+                    bottleCount++;
+                }
+                if (remainder > 0.0D) {
+                    giveBottle(player, remainder, plugin, debug, false);
+                    bottleCount++;
+                }
+
+                // One sound + one message instead of chat spam
+                player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_BREAK, SoundCategory.PLAYERS, 1.0F, 0.7F);
+                player.sendMessage(
+                        ChatColor.GOLD + "Stored " + ChatColor.WHITE + formatXP(currentXP)
+                                + " XP Points " + ChatColor.GOLD + "into "
+                                + ChatColor.YELLOW + bottleCount
+                                + ChatColor.GOLD + " bottle" + (bottleCount == 1 ? "" : "s") + "."
+                );
+                return true;
+            } else {
+                // Either no cap or total XP fits in a single bottle
+                double amount = currentXP;
+                setTotalExperience(player, 0.0D);
+                giveBottle(player, amount, plugin, debug, true);
+                return true;
+            }
+        }
+
+        final double amount;
+        try {
+            amount = Double.parseDouble(args[0]);
+            if (amount <= 0.0D) {
+                player.sendMessage(ChatColor.RED + "Amount must be greater than 0.");
+                return true;
+            }
+        } catch (NumberFormatException e) {
+            player.sendMessage(ChatColor.RED + "Invalid number: " + ChatColor.YELLOW + args[0]);
+            return true;
+        }
+
+        if (maxPoints > 0 && amount > maxPoints) {
+            player.sendMessage(ChatColor.RED + "You cannot store more than "
+                    + ChatColor.YELLOW + maxPoints + ChatColor.RED + " points in one bottle!");
+            return true;
+        }
+
+        if (currentXP < amount) {
+            player.sendMessage(ChatColor.RED + "You don't have enough XP points!");
+            return true;
+        }
+
+        setTotalExperience(player, currentXP - amount);
+        giveBottle(player, amount, plugin, debug, true);
         return true;
-      }
-    } catch (NumberFormatException e) {
-      player.sendMessage(ChatColor.RED + "Invalid number: " + ChatColor.YELLOW + args[0]);
-      return true;
     }
 
-    final int maxPoints = this.isBook
-        ? plugin.getConfig().getInt("max-xp-points-book",
-            plugin.getConfig().getInt("max-xp-levels-book", -1))
-        : plugin.getConfig().getInt("max-xp-points-bottle",
-            plugin.getConfig().getInt("max-xp-levels-bottle", -1));
-    if (maxPoints > 0 && amount > maxPoints) {
-      player.sendMessage(ChatColor.RED + "You cannot store more than "
-          + ChatColor.YELLOW + maxPoints + ChatColor.RED + " points in one "
-          + (this.isBook ? "book" : "bottle") + "!");
-      return true;
+    /**
+     * Give an XP bottle to the player with the specified amount stored.
+     *
+     * @param sendMessage whether to send the standard "Stored X XP" chat message & play sound
+     */
+    private void giveBottle(Player player, double amount, Plugin plugin, boolean debug, boolean sendMessage) {
+        final Material itemType = Material.EXPERIENCE_BOTTLE;
+        final String primary = ChatColor.GOLD.toString();
+        final String accent = ChatColor.GRAY.toString();
+        final String reset = ChatColor.RESET.toString();
+
+        ItemStack item = new ItemStack(itemType, 1);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            String itemName = primary + "XP Bottle" + reset
+                    + accent + " (Points " + formatXP(amount) + ")";
+            meta.setDisplayName(itemName);
+            meta.getPersistentDataContainer().set(this.xpPointsKey, PersistentDataType.DOUBLE, amount);
+            item.setItemMeta(meta);
+        }
+
+        if (debug) {
+            plugin.getLogger().info("(DEBUG) Created XP Bottle with " + amount + " points for " + player.getName());
+        }
+
+        player.getInventory().addItem(item);
+
+        if (sendMessage) {
+            player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_BREAK, SoundCategory.PLAYERS, 1.0F, 0.7F);
+            player.sendMessage(
+                    primary + "Stored " + ChatColor.WHITE + formatXP(amount)
+                            + " XP Point" + (Double.compare(amount, 1.0D) == 0 ? "" : "s")
+                            + reset
+            );
+        }
     }
 
-
-    final double currentXP = getTotalExperience(player);
-    if (currentXP < amount) {
-      player.sendMessage(ChatColor.RED + "You don't have enough XP points!");
-      return true;
+    private String formatXP(double value) {
+        return (value % 1.0D == 0.0D)
+                ? String.valueOf((int) value)
+                : String.format(Locale.ROOT, "%.2f", value);
     }
 
-
-    setTotalExperience(player, currentXP - amount);
-
-
-    final Material itemType = this.isBook ? Material.KNOWLEDGE_BOOK : Material.EXPERIENCE_BOTTLE;
-    final String primary = this.isBook ? ChatColor.DARK_AQUA.toString() : ChatColor.GOLD.toString();
-    final String accent = ChatColor.GRAY.toString();
-    final String reset = ChatColor.RESET.toString();
-
-    ItemStack item = new ItemStack(itemType, 1);
-    ItemMeta meta = item.getItemMeta();
-    if (meta != null) {
-      String itemName = primary + (this.isBook ? "XP Book" : "XP Bottle") + reset
-          + accent + " (Points " + formatXP(amount) + ")";
-      meta.setDisplayName(itemName);
-      meta.getPersistentDataContainer().set(this.xpPointsKey, PersistentDataType.DOUBLE, amount);
-
-      item.setItemMeta(meta);
+    private double getTotalExperience(Player player) {
+        double total = 0.0D;
+        for (int i = 0; i < player.getLevel(); i++) {
+            total += getExpAtLevel(i);
+        }
+        total += (player.getExp() * getExpAtLevel(player.getLevel()));
+        return total;
     }
 
-    if (debug) {
-      plugin.getLogger().info("(DEBUG) Created " + (this.isBook ? "XP Book" : "XP Bottle")
-          + " with " + amount + " points for " + player.getName());
+    private void setTotalExperience(Player player, double amount) {
+        player.setExp(0.0F);
+        player.setLevel(0);
+        player.setTotalExperience(0);
+
+        double remaining = Math.max(0.0D, amount);
+        int level = 0;
+        while (remaining >= getExpAtLevel(level)) {
+            remaining -= getExpAtLevel(level);
+            level++;
+        }
+        player.setLevel(level);
+        player.setExp(getExpAtLevel(level) > 0 ? (float) (remaining / getExpAtLevel(level)) : 0.0F);
     }
 
-    player.getInventory().addItem(item);
-    player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_BREAK, SoundCategory.PLAYERS, 1.0F, 0.7F);
-    player.sendMessage(
-    	    primary + "Stored " + ChatColor.WHITE + formatXP(amount)
-    	    + " XP Point" + (Double.compare(amount, 1.0D) == 0 ? "" : "s")
-    	    + reset
-    	);
-	return true;
-  }
-
-  private String formatXP(double value) {
-    return (value % 1.0D == 0.0D)
-        ? String.valueOf((int) value)
-        : String.format(Locale.ROOT, "%.2f", value);
-  }
-
-
-  private double getTotalExperience(Player player) {
-    double total = 0.0D;
-    for (int i = 0; i < player.getLevel(); i++) {
-      total += getExpAtLevel(i);
+    private int getExpAtLevel(int level) {
+        if (level <= 15) return 2 * level + 7;
+        if (level <= 30) return 5 * level - 38;
+        return 9 * level - 158;
     }
-    total += (player.getExp() * getExpAtLevel(player.getLevel()));
-    return total;
-  }
-
-
-  private void setTotalExperience(Player player, double amount) {
-    player.setExp(0.0F);
-    player.setLevel(0);
-    player.setTotalExperience(0);
-
-    double remaining = Math.max(0.0D, amount);
-    int level = 0;
-    while (remaining >= getExpAtLevel(level)) {
-      remaining -= getExpAtLevel(level);
-      level++;
-    }
-    player.setLevel(level);
-    player.setExp(getExpAtLevel(level) > 0 ? (float) (remaining / getExpAtLevel(level)) : 0.0F);
-  }
-
-
-  private int getExpAtLevel(int level) {
-    if (level <= 15) return 2 * level + 7;
-    if (level <= 30) return 5 * level - 38;
-    return 9 * level - 158;
-  }
 }

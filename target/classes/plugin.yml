@@ -5,18 +5,14 @@ api-version: '1.21'
 prefix: StowableXP
 load: STARTUP
 authors: [ Cinnaminin ]
-description: A server plugin that allows players to store their XP into a XP Bottle or XP Book.
+description: A server plugin that allows players to store their XP into an XP Bottle.
 website: https://cinnaminin.dev/
 
 commands:
   bottlexp:
     description: Store your XP points in a bottle.
-    usage: /bottlexp <amount>
+    usage: /bottlexp <amount|all>
     aliases: [ bxp ]
-
-  bookxp:
-    description: Store your XP points in a book.
-    usage: /bookxp <amount>
 
   stowablexp:
     description: Main Plugin command used for Plugin Info and debugging.
