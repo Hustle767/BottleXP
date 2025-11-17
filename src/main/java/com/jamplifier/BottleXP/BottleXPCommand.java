@@ -10,6 +10,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
@@ -59,16 +60,30 @@ public class BottleXPCommand implements CommandExecutor {
                 plugin.getConfig().getInt("max-xp-levels-bottle", -1)
         );
 
+        // --------------------------
+        // /bottlexp all
+        // --------------------------
         if (withdrawAll) {
-            // /bottlexp all  -> withdraw everything, possibly split into multiple bottles
             if (maxPoints > 0 && currentXP > maxPoints) {
-                // Split into multiple bottles obeying the per-bottle cap
-                setTotalExperience(player, 0.0D);
-
                 int fullBottles = (int) (currentXP / maxPoints);
                 double remainder = currentXP % maxPoints;
-                int bottleCount = 0;
+                int bottlesNeeded = fullBottles + (remainder > 0.0D ? 1 : 0);
 
+                int empty = countEmptySlots(player);
+                if (empty < bottlesNeeded) {
+                    player.sendMessage(
+                            ChatColor.RED + "Your inventory is full! You need at least "
+                                    + ChatColor.YELLOW + bottlesNeeded
+                                    + ChatColor.RED + " free slot"
+                                    + (bottlesNeeded == 1 ? "" : "s")
+                                    + " to store all of your XP."
+                    );
+                    return true;
+                }
+
+                setTotalExperience(player, 0.0D);
+
+                int bottleCount = 0;
                 for (int i = 0; i < fullBottles; i++) {
                     giveBottle(player, maxPoints, plugin, debug, false);
                     bottleCount++;
@@ -89,6 +104,15 @@ public class BottleXPCommand implements CommandExecutor {
                 return true;
             } else {
                 // Either no cap or total XP fits in a single bottle
+                if (countEmptySlots(player) < 1) {
+                    player.sendMessage(
+                            ChatColor.RED + "Your inventory is full! You need at least "
+                                    + ChatColor.YELLOW + "1"
+                                    + ChatColor.RED + " free slot to store your XP."
+                    );
+                    return true;
+                }
+
                 double amount = currentXP;
                 setTotalExperience(player, 0.0D);
                 giveBottle(player, amount, plugin, debug, true);
@@ -96,6 +120,9 @@ public class BottleXPCommand implements CommandExecutor {
             }
         }
 
+        // --------------------------
+        // /bottlexp <amount>
+        // --------------------------
         final double amount;
         try {
             amount = Double.parseDouble(args[0]);
@@ -116,6 +143,16 @@ public class BottleXPCommand implements CommandExecutor {
 
         if (currentXP < amount) {
             player.sendMessage(ChatColor.RED + "You don't have enough XP points!");
+            return true;
+        }
+
+        // Need at least one free slot for this bottle
+        if (countEmptySlots(player) < 1) {
+            player.sendMessage(
+                    ChatColor.RED + "Your inventory is full! You need at least "
+                            + ChatColor.YELLOW + "1"
+                            + ChatColor.RED + " free slot to store your XP."
+            );
             return true;
         }
 
@@ -159,6 +196,19 @@ public class BottleXPCommand implements CommandExecutor {
                             + reset
             );
         }
+    }
+
+    private int countEmptySlots(Player player) {
+        PlayerInventory inv = player.getInventory();
+        int empty = 0;
+        // getStorageContents() = main inventory + hotbar (no armor/offhand)
+        ItemStack[] contents = inv.getStorageContents();
+        for (ItemStack stack : contents) {
+            if (stack == null || stack.getType() == Material.AIR) {
+                empty++;
+            }
+        }
+        return empty;
     }
 
     private String formatXP(double value) {
