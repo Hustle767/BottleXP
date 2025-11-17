@@ -1,0 +1,17 @@
+# Thank you so much for downloading SXP (StowableXP)!
+# This is my first ever plugin, so I appreciate any support <3
+# Here is the project page if any help is needed or if you want some more info. (https://cinnaminin.dev/projects/stowablexp-mc/)
+#
+#
+#
+# Enable or disable SXP bottle and book commands
+enable-bottles: true
+enable-books: true
+# Enable or disable Mending Repair when SXP item is used
+enable-mending: true
+# Max XP levels allowed in a single bottle or book (set to -1 for no limit)
+max-xp-levels-bottle: 1000
+max-xp-levels-book: 5000
+#
+# Enable or disable Debug mode (use if there are issues with the plugin, this should help pinpoint issues)
+debug-mode: false
