@@ -1,21 +1,16 @@
-# Enable or disable SXP bottle and book commands
+# Enable or disable SXP bottle commands
 enable-bottles: true
-enable-books: true
 
 # Enable or disable Mending Repair when SXP item is used
-enable-mending: true
+enable-mending: false
 
-# Max XP levels allowed in a single bottle or book (set to -1 for no limit)
+# Max XP stored in a single bottle (set to -1 for no limit)
 max-xp-levels-bottle: 1000
-max-xp-levels-book: 5000
 
 # Enable or disable Debug mode (use if there are issues with the plugin, this should help pinpoint issues)
 debug-mode: false
 
-# Worlds where players CANNOT redeem SXP bottles/books.
+# Worlds where players CANNOT redeem SXP bottles.
 # Put world names here (case-insensitive).
-# Example:
-# blocked-redeem-worlds:
-#   - world_nether
-#   - world_the_end
-blocked-redeem-worlds: []
+blocked-redeem-worlds:
+  - Duels
