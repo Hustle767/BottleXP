@@ -41,8 +41,8 @@ public class MainCommand implements CommandExecutor {
     sender.sendMessage("help Show this help message");
     sender.sendMessage("info Show plugin info");
     sender.sendMessage("reload Reload the plugin config");
-    sender.sendMessage("<amount> [levels|points] Withdraw XP into a bottle");
-    sender.sendMessage("<amount> [levels|points] Withdraw XP into a book");
+    sender.sendMessage("<amount> [points] Withdraw XP into a bottle");
+    sender.sendMessage("<amount> [points] Withdraw XP into a book");
   }
   
   private void sendInfo(CommandSender sender) {

@@ -17,7 +17,6 @@ public class TypeForPlayer implements TabCompleter {
     } 
     if ((command.getName().equalsIgnoreCase("bottlexp") || command.getName().equalsIgnoreCase("bookxp")) && 
       args.length == 2) {
-      completions.add("levels");
       completions.add("points");
     } 
     return completions;
