@@ -161,14 +161,9 @@ public class BottleXPCommand implements CommandExecutor {
             return true;
         }
 
-        int emptySlots = countEmptySlots(player);
-        if (emptySlots < bottlesCount) {
+        if (!canFitBottles(player, amountPerBottle, bottlesCount)) {
             player.sendMessage(
-                    ChatColor.RED + "Your inventory is full! You need at least "
-                            + ChatColor.YELLOW + bottlesCount
-                            + ChatColor.RED + " free slot"
-                            + (bottlesCount == 1 ? "" : "s")
-                            + " to store these bottles."
+                    ChatColor.RED + "Your inventory does not have enough space for that many XP bottles."
             );
             return true;
         }
@@ -219,6 +214,55 @@ public class BottleXPCommand implements CommandExecutor {
                             + reset
             );
         }
+    }
+
+    private boolean canFitBottles(Player player, double amountPerBottle, int bottlesCount) {
+        PlayerInventory inv = player.getInventory();
+
+        final Material itemType = Material.EXPERIENCE_BOTTLE;
+        final String primary = ChatColor.GOLD.toString();
+        final String accent = ChatColor.GRAY.toString();
+        final String reset = ChatColor.RESET.toString();
+
+        ItemStack prototype = new ItemStack(itemType, 1);
+        ItemMeta meta = prototype.getItemMeta();
+        if (meta != null) {
+            String itemName = primary + "XP Bottle" + reset
+                    + accent + " (Points " + formatXP(amountPerBottle) + ")";
+            meta.setDisplayName(itemName);
+            meta.getPersistentDataContainer().set(this.xpPointsKey, PersistentDataType.DOUBLE, amountPerBottle);
+            prototype.setItemMeta(meta);
+        }
+
+        int maxStack = prototype.getMaxStackSize();
+        int remaining = bottlesCount;
+
+        ItemStack[] contents = inv.getStorageContents();
+
+        for (ItemStack stack : contents) {
+            if (remaining <= 0) break;
+            if (stack == null || stack.getType() == Material.AIR) continue;
+            if (stack.isSimilar(prototype)) {
+                int canAdd = maxStack - stack.getAmount();
+                if (canAdd > 0) {
+                    remaining -= Math.min(canAdd, remaining);
+                }
+            }
+        }
+
+        if (remaining <= 0) {
+            return true;
+        }
+
+        for (ItemStack stack : contents) {
+            if (remaining <= 0) break;
+            if (stack == null || stack.getType() == Material.AIR) {
+                int canAdd = maxStack;
+                remaining -= Math.min(canAdd, remaining);
+            }
+        }
+
+        return remaining <= 0;
     }
 
     private int countEmptySlots(Player player) {

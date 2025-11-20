@@ -2,10 +2,10 @@
 enable-bottles: true
 
 # Enable or disable Mending Repair when SXP item is used
-enable-mending: false
+enable-mending: true
 
 # Max XP stored in a single bottle (set to -1 for no limit)
-max-xp-levels-bottle: 1000
+max-xp-levels-bottle: 100000
 
 # Enable or disable Debug mode (use if there are issues with the plugin, this should help pinpoint issues)
 debug-mode: false
